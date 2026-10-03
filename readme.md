@@ -8,6 +8,8 @@ An interactive map of possible dependencies between Composio's Google Super and 
 
 ![Interactive tool dependency graph with a selected tool's details](docs/graph-preview.png)
 
+[Explore the live graph](https://www.monishakrishnamurthy.com/composio-tool-dependency-graph/graph.html)
+
 ## Why it matters
 
 A reply tool may need a thread ID from a search tool. An action addressed to a person may first require resolving their name to an email address. This project inspects tool schemas and visualizes candidate connections to make these relationships easier to explore.
