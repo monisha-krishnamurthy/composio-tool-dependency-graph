@@ -1,70 +1,57 @@
-# composio-tool-dependency-graph
+# Composio Tool Dependency Graph
 
-A dependency graph over [Composio](https://composio.dev)'s **Google Super** and **GitHub** toolkits: for every tool, which *other* tools can supply the inputs it needs before it can run.
+An interactive map of possible dependencies between Composio's Google Super and GitHub tools. It explores a practical agent-planning question: which tool could supply an input that another tool needs?
 
-Some tools need precursor actions before they can execute. A couple of concrete examples:
+**Stack:** TypeScript · JavaScript · Composio SDK · JSON Schema
 
-- `GMAIL_REPLY_TO_THREAD` needs a `thread_id` — which `GMAIL_LIST_THREADS` can supply (there can be other ways to get one too).
-- The send-email tool needs an email address — if you only have a person's *name*, you'd first search contacts to resolve it to an email, then send.
+## Preview
 
-When agentically executing actions, you need to know either what to ask the user for, or what other action to run first. This project builds that dependency graph automatically from the tools' own input/output JSON schemas, and renders it as an interactive, explorable graph.
+![Interactive tool dependency graph with a selected tool's details](docs/graph-preview.png)
 
-**[Open `graph.html`](./graph.html) directly in a browser to see the result** — no server or build step needed.
+## Why it matters
 
-## how it works
+A reply tool may need a thread ID from a search tool. An action addressed to a person may first require resolving their name to an email address. This project inspects tool schemas and visualizes candidate connections to make these relationships easier to explore.
 
-1. **Fetch** (`src/fetch-tools.ts`) — pulls raw tool schemas (`inputParameters`/`outputParameters` JSON
-   Schema, including `$defs`) for every `googlesuper` and `github` tool via the Composio SDK into
-   `data/*.json` (467 googlesuper tools, 893 github tools as of writing).
-2. **Analyze** (`src/build-graph.js`) — for every tool's *required* input param, infers a
-   `{resource, suffix}` concept from its name (e.g. `thread_id` → thread/id, `pull_number` →
-   pull/number; camelCase params like `fileId` are normalized too), flattens every other tool's output
-   schema (resolving `$ref`/`$defs`, bounded to real object-nesting depth so array-of-`$ref` list
-   responses are still reachable), and scores candidate producer fields by matching resource keyword
-   (found in the field's def name/description) against suffix shape. The top 3 producers per
-   (tool, param) become edges, tagged:
-   - `lookup` — a list/search/find tool naturally returns this id
-   - `creates` — the id comes back from creating the resource
-   - `resolve-identity` — a curated pattern for the "name → email/username" case: if you only have a
-     name, search people/users first to resolve it, then call the target tool
+## View the included graph
 
-   `owner`/`repo`/`org` are deliberately excluded from generic id-chaining — in practice you already
-   know which repo/user you mean, so chaining them through a "list users" call produces technically
-   true but useless noise. Only genuine discovery tools (`SEARCH_USERS`, `SEARCH_PEOPLE`, ...) get an
-   edge for those, via `resolve-identity`. Output: `data/graph.json` — 800 nodes with ≥1 edge, 1725
-   edges, out of 1360 tools scanned.
-3. **Visualize** (`src/build-viz.js`) — generates a single self-contained `graph.html`. Nodes are
-   clustered by toolkit + inferred resource family, colored by toolkit, sized by degree; edges are
-   colored/dashed by type. Supports pan/zoom, toolkit/edge-type filters, text search, and a
-   click-through detail panel listing a tool's required inputs and everything that depends on / is
-   depended on by it.
+Clone the repository, then open `graph.html` in your browser:
 
-## setup
-
-1. Get a Composio API key at [dashboard.composio.dev](https://dashboard.composio.dev).
-2. Run `COMPOSIO_API_KEY=<your key> sh scaffold.sh` — writes a `.env` with your Composio key and an
-   OpenRouter key.
-3. Install dependencies and regenerate everything:
-
-   ```sh
-   npm install
-   npx tsx src/fetch-tools.ts
-   node src/build-graph.js
-   node src/build-viz.js
-   open graph.html
-   ```
-
-## project structure
-
-```
-src/fetch-tools.ts   fetch raw tool schemas from Composio -> data/*_tools.json
-src/build-graph.js    infer dependency edges from the schemas -> data/graph.json
-src/build-viz.js      render data/graph.json -> graph.html (self-contained)
-graph.html            the generated visualization (open this to see the result)
+```bash
+git clone https://github.com/monisha-krishnamurthy/composio-tool-dependency-graph.git
+cd composio-tool-dependency-graph
+open graph.html
 ```
 
-## before you push this publicly
+`open` is the macOS command; on other systems, open the file through your file manager. The included graph requires no API key to inspect.
 
-If you're cloning this pattern for your own repo: make sure `.env` and any local agent-harness config
-(e.g. `.claude/`) are gitignored — they can end up holding a raw API key. Rotate any key that was ever
-committed or shared.
+## How it works
+
+1. **Fetch:** `src/fetch-tools.ts` saves toolkit schemas under `data/`.
+2. **Analyze:** `src/build-graph.js` matches required inputs to candidate output fields, including nested schema references.
+3. **Visualize:** `src/build-viz.js` creates `graph.html` with search, filtering, pan/zoom, and tool details.
+
+Edges distinguish lookup, creation, and identity-resolution relationships. Candidate matches are inferred from schema names and descriptions; they are not verified executable workflows.
+
+## Rebuild from the included data
+
+With Node.js and npm installed:
+
+```bash
+npm ci
+node src/build-graph.js
+node src/build-viz.js
+```
+
+To refresh tool schemas, set `COMPOSIO_API_KEY` in a local, ignored `.env` file, then run:
+
+```bash
+npx tsx src/fetch-tools.ts
+node src/build-graph.js
+node src/build-viz.js
+```
+
+The included `scaffold.sh` calls a hiring-specific external service and is not required for this workflow. `upload.sh` is also separate from local graph generation.
+
+## Scope
+
+The graph is a snapshot of tool metadata, not live account activity. Schema changes and heuristic matches can produce missing or incorrect edges. Validate dependencies before using them to execute actions.
